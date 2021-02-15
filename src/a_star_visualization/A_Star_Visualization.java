@@ -1,5 +1,6 @@
 //Imports and Packages:
 package a_star_visualization;
+import static a_star_visualization.Cell.placement;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
@@ -16,7 +17,6 @@ import javafx.scene.layout.RowConstraints;
 import javafx.stage.Stage;
 import java.util.ArrayList;
 
-
 //******************************************************************************
 //Entry Point Class:
 //Contains Logic For A*, Building the Window, and Handling Data: 
@@ -27,14 +27,15 @@ public class A_Star_Visualization  extends Application {
 //******************************************************************************
 // Member Vars of Class:
 // Note: A_Star_Visualization cannot be instantiated:
+// Note Statics are used due to static methods being used in Listener Objects: 
 //******************************************************************************    
     
     //Main Grid:
     public GridPane root;
     
     //Constants Grid:
-    public int NUMBER_OF_ROWS;
-    public int NUMBER_OF_COLS;
+    public static int NUMBER_OF_ROWS;
+    public static int NUMBER_OF_COLS;
     
     //Constants Screen:
     public int SCENE_X_SIZE;
@@ -48,28 +49,20 @@ public class A_Star_Visualization  extends Application {
     
     
     //Tracks Player Loc, used for A*
-    public int Player_X_Pos;
-    public int Player_Y_Pos;
+    public static int Player_X_Pos;
+    public static int Player_Y_Pos;
     
     //Tracks Goal Loc, used for A*
-    public int Goal_X_Pos;
-    public int Goal_Y_Pos;
+    public static int Goal_X_Pos;
+    public static int Goal_Y_Pos;
     
+   
+    //Grid of Cells:
+    //Cells are comprised of an X, Y, distance to Goal, and graphics:
     
-    //Changes the Map based on State:
-    public Map_State ms;
+    public static Cell[][] CA;
     
-    //JavaFX lacks an easy way to traverse a grid.
-    //Adding Imageviews to this for easy access: 
-    public ImageView[][] IVA;
-    
-    //A* Grid under the Hood:
-    public Cell[][] CA;
-    
-    
-    //
-    public boolean placement;
-    
+
     
     /*
     
@@ -118,7 +111,6 @@ public class A_Star_Visualization  extends Application {
         
        
        //Instantiate all Grid Objects: Arrays are used to help control A* and Grid Graphics:
-       IVA = new ImageView[NUMBER_OF_ROWS][NUMBER_OF_COLS]; 
        CA = new Cell[NUMBER_OF_ROWS][NUMBER_OF_COLS];
               
        //Grid Instantiation:
@@ -129,10 +121,10 @@ public class A_Star_Visualization  extends Application {
        //Boolean used to Control Placing of objects: Cannot Place Objects as A* runs:
        //Once finished, A* can be run again and objects placed is the goal:
        //TODO expand that functionality:
-       placement = true;
+       Cell.placement = true;
        
        //Map State that controls what object is placed:
-       ms = Map_State.PLACE_ROCK;
+       Cell.ms = Map_State.PLACE_ROCK;
      
         
        
@@ -188,14 +180,6 @@ public class A_Star_Visualization  extends Application {
         
         
        
-       //Displays Data to the user via the console:
-       System.out.println("A* Visual:");
-       System.out.println("Up Arrow to Change Tile you can place");
-       System.out.println("Enter to Run A*");
-       
-       System.out.println("X Pixels per Tile: " + X_PIXEL_PER_TILE);
-       System.out.println("Y Pixels Per Tile: " + Y_PIXEL_PER_TILE);
-       System.out.println("*****************************************");
         
        
        //Building the GUI Grid:
@@ -212,14 +196,14 @@ public class A_Star_Visualization  extends Application {
        scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.UP) {
                 System.out.println("Changing Placement Mode:");
-                switch(ms){
-                    case PLACE_ROCK: ms = Map_State.PLACE_GOAL; break;
-                    case PLACE_GRASS: ms = Map_State.PLACE_PLAYER; break;
-                    case PLACE_PLAYER: ms = Map_State.PLACE_ROCK; break;
-                    case PLACE_GOAL: ms = Map_State.PLACE_GRASS; break;
+                switch(Cell.ms){
+                    case PLACE_ROCK: Cell.ms = Map_State.PLACE_GOAL; break;
+                    case PLACE_GRASS: Cell.ms = Map_State.PLACE_PLAYER; break;
+                    case PLACE_PLAYER: Cell.ms = Map_State.PLACE_ROCK; break;
+                    case PLACE_GOAL: Cell.ms = Map_State.PLACE_GRASS; break;
                     default: System.err.println("Error: Unsupported Enum"); System.exit(1);
                 }
-                System.out.println("New Map State: " + ms);
+                System.out.println("New Map State: " + Cell.ms);
                 System.out.println("*****************************************");
             }
             
@@ -233,7 +217,28 @@ public class A_Star_Visualization  extends Application {
                     Logger.getLogger(A_Star_Visualization.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
+            
+            if(e.getCode() == KeyCode.R){
+                try {
+                    Reset();
+                } catch (FileNotFoundException ex) {
+                    Logger.getLogger(A_Star_Visualization.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                Calculate_Heuristic();
+            }
+            
        });
+       
+       
+       //Displays Data to the user via the console:
+       System.out.println("A* Visual:");
+       System.out.println("Up Arrow to Change Tile you can place");
+       System.out.println("Enter to Run A*");
+       System.out.println("R to Reset:");
+       
+       System.out.println("X Pixels per Tile: " + X_PIXEL_PER_TILE);
+       System.out.println("Y Pixels Per Tile: " + Y_PIXEL_PER_TILE);
+       System.out.println("*****************************************");
        
        
        //Show the Scene via the JavaFX window: 
@@ -249,28 +254,23 @@ public class A_Star_Visualization  extends Application {
 // Initializes the Grid, and underlying arrays that control A*.
 // Also initializes mouse listeners that control placing tiles: 
 //******************************************************************************
-    public void Init_GUI_Grid() throws FileNotFoundException {
+    
+   public void Init_GUI_Grid() throws FileNotFoundException {
         
         for(int i = 0; i < NUMBER_OF_COLS; i++){
             for(int j = 0; j < NUMBER_OF_ROWS; j++){
+                CA[i][j] = new Cell(i, j);
                 if(i == 0 && j == 0){
                     Player_X_Pos = 0;
                     Player_Y_Pos = 0;
                     InputStream Player = new FileInputStream("data\\Player.png");
-                    ImageView IVP = new ImageView();
                     Image I = new Image(Player);
-                    IVP.setImage(I);
-                    IVP.setFitHeight(Y_PIXEL_PER_TILE);
-                    IVP.setFitWidth(X_PIXEL_PER_TILE);
-                    IVP.setOnMousePressed(eh -> {try {
-                        Handle_Mouse_Press(IVP);
-                        } catch (FileNotFoundException ex) {
-                            Logger.getLogger(A_Star_Visualization.class.getName()).log(Level.SEVERE, null, ex);
-                        }
-                    });
-                    root.add(IVP, i, j);
-                    IVA[i][j] = IVP;
-                    CA[i][j] = new Cell(i, j);
+                    CA[i][j].Set_Image(I);
+                    CA[i][j].Update_ImageView();
+                    CA[i][j].Create_Mouse_Listener();
+                    
+                    CA[i][j].Set_Constraints_For_IV( X_PIXEL_PER_TILE,  Y_PIXEL_PER_TILE);
+                    root.add(CA[i][j].Get_ImageView(), i, j);
                     continue;
                 }
                 
@@ -278,177 +278,43 @@ public class A_Star_Visualization  extends Application {
                     Goal_X_Pos = NUMBER_OF_COLS - 1;
                     Goal_Y_Pos = NUMBER_OF_ROWS - 1;
                     InputStream Goal = new FileInputStream("data\\Goal.png");
-                    ImageView IVG = new ImageView();
                     Image I = new Image(Goal);
-                    IVG.setImage(I);
-                    IVG.setFitHeight(Y_PIXEL_PER_TILE);
-                    IVG.setFitWidth(X_PIXEL_PER_TILE);
-                    IVG.setOnMousePressed(eh -> {try {
-                        Handle_Mouse_Press(IVG);
-                        } catch (FileNotFoundException ex) {
-                            Logger.getLogger(A_Star_Visualization.class.getName()).log(Level.SEVERE, null, ex);
-                        }
-                    });
-                    root.add(IVG, i, j);
-                    IVA[i][j] = IVG;
-                    CA[i][j] = new Cell(i, j);
+                    CA[i][j].Set_Image(I);
+                    CA[i][j].Update_ImageView();
+                    CA[i][j].Create_Mouse_Listener();
+                    CA[i][j].Set_Constraints_For_IV(X_PIXEL_PER_TILE,  Y_PIXEL_PER_TILE);                
+                    root.add(CA[i][j].Get_ImageView(), i, j);
                     continue;
                 }
                
                 
-                ImageView IV = new ImageView();
                 InputStream grass = new FileInputStream("data\\Grass.png");
                 Image I = new Image(grass);
-                IV.setImage(I);
-                IV.setFitHeight(Y_PIXEL_PER_TILE);
-                IV.setFitWidth(X_PIXEL_PER_TILE);
-                IV.setOnMousePressed(eh -> {try {
-                    Handle_Mouse_Press(IV);
-                    } catch (FileNotFoundException ex) {
-                        Logger.getLogger(A_Star_Visualization.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                });
-                root.add(IV, i, j);
-                IVA[i][j] = IV;
-                CA[i][j] = new Cell(i, j);
+                CA[i][j].Set_Image(I);
+                CA[i][j].Update_ImageView();
+                CA[i][j].Create_Mouse_Listener();
+                CA[i][j].Set_Constraints_For_IV( X_PIXEL_PER_TILE,  Y_PIXEL_PER_TILE);
+                root.add(CA[i][j].Get_ImageView(), i, j);
+            
             }
-        
-       }
-        
-    }
-    
-//******************************************************************************    
-//Handles mouse presses: 
-//******************************************************************************
-    
-    
-    private void Handle_Mouse_Press(ImageView IV) throws FileNotFoundException {
-        
-        int x = GridPane.getColumnIndex(IV);
-        int y = GridPane.getRowIndex(IV);
-        System.out.println("Clicked On: X Coord: " + x + " Y Coord: " + y);
-        
-        //Prevent Map Modification while A* is running: 
-        //Todo add option for allowing user to run A* while modifying map. 
-        if(placement == false){return;}
-        
-        switch(ms){
-            case PLACE_ROCK: Place_Rock(x, y, IV); break;
-            case PLACE_GRASS: Place_Grass(x, y, IV); break;
-            case PLACE_PLAYER: Place_Player(x, y, IV); break;
-            case PLACE_GOAL: Place_Goal(x, y, IV); break;
-            default: System.err.println("Error: Unsupported Enum"); System.exit(1);
+       
         }
-        
-    }
-    
-    
-//******************************************************************************
-//Terrain Modifiers:
-//******************************************************************************
-    private void Place_Rock(int x, int y, ImageView IV) throws FileNotFoundException {
-        
-        if(x == Player_X_Pos && y == Player_Y_Pos){
-            return;
-        }
-        
-        if(x == Goal_X_Pos && y == Goal_Y_Pos){
-            return;
-        }
-        
-        CA[x][y].Set_Can_Traverse(false);
-        InputStream Rock = new FileInputStream("data\\Rock.png");
-        Image value = new Image(Rock);
-        IV.setImage(value);    
-    }
-
-    private void Place_Grass(int x, int y, ImageView IV) throws FileNotFoundException {
-        
-        
-        if(x == Player_X_Pos && y == Player_Y_Pos){
-            return;
-        }
-        
-        if(x == Goal_X_Pos && y == Goal_Y_Pos){
-            return;
-        }
-        
-        CA[x][y].Set_Can_Traverse(true);
-        InputStream Grass = new FileInputStream("data\\Grass.png");
-        Image value = new Image(Grass);
-        IV.setImage(value);
-        
-    }
-
-    private void Place_Goal(int x, int y, ImageView IV) throws FileNotFoundException {
-        
-        if(x == Player_X_Pos && y == Player_Y_Pos){
-            return;
-        }
-        
-        if(x == Goal_X_Pos && y == Goal_Y_Pos){
-            return;
-        }
-        
-        int tmp_x = Goal_X_Pos;
-        int tmp_y = Goal_Y_Pos;
-        
-                
-        System.out.println("Temp x: " + tmp_x);
-        System.out.println("Tmp y: " + tmp_y);
-        
-        Goal_X_Pos = x;
-        Goal_Y_Pos = y;
-        CA[Goal_X_Pos][Goal_Y_Pos].Set_Can_Traverse(true);
-        InputStream Goal = new FileInputStream("data\\Goal.png");
-        Image value = new Image(Goal);
-        IV.setImage(value);
-        
-        Place_Grass(tmp_x, tmp_y);
-        Calculate_Heuristic();
-        
-    }
-
-    private void Place_Player(int x, int y, ImageView IV) throws FileNotFoundException {
-        
-        if(x == Player_X_Pos && y == Player_Y_Pos){
-            return;
-        }
-        
-        if(x == Goal_X_Pos && y == Goal_Y_Pos){
-            return;
-        }
-        
-        int tmp_x = Player_X_Pos;
-        int tmp_y = Player_Y_Pos;
-        
-        System.out.println("Temp x: " + tmp_x);
-        System.out.println("Tmp y:" + tmp_y);
-        
-        //Change to new X, Y:
-        Player_X_Pos = x;
-        Player_Y_Pos = y;
-        CA[Player_X_Pos][Player_Y_Pos].Set_Can_Traverse(true);
-        InputStream P = new FileInputStream("data\\Player.png");
-        Image value = new Image(P);
-        IV.setImage(value);
-        
-        Place_Grass(tmp_x, tmp_y);
-        Calculate_Heuristic();   
-    }
+   
+   } 
 
 //******************************************************************************
-//Overloaded Function: 
+//Function Places a Grass Tile in the Old Location of where the Goal or Player is:
+//Thus: 
 //Called by Place Goal / Player: Can only be one Goal or Player on the stage:
 //******************************************************************************    
     
-    private void Place_Grass(int tmp_x, int tmp_y) throws FileNotFoundException {
+    public static void Place_Grass_In_Old_Location(int tmp_x, int tmp_y) throws FileNotFoundException {
         
-        ImageView IV = getImageViewFromGridPane(tmp_x, tmp_y);
         InputStream Grass = new FileInputStream("data\\Grass.png");
         Image value = new Image(Grass);
-        IV.setImage(value);
         CA[tmp_x][tmp_y].Set_Can_Traverse(true);
+        CA[tmp_x][tmp_y].Set_Image(value);
+        CA[tmp_x][tmp_y].Update_ImageView();
         
     
     }
@@ -458,7 +324,7 @@ public class A_Star_Visualization  extends Application {
 //******************************************************************************    
     
     public ImageView getImageViewFromGridPane(int col, int row) {
-        return IVA[col][row];
+        return CA[col][row].Get_ImageView();
     }
     
 //******************************************************************************
@@ -478,7 +344,7 @@ public class A_Star_Visualization  extends Application {
         System.out.println("*****************************************");
         
         //Bookkeeping First:
-        placement = false;
+        Cell.placement = false;
         Cell Start =    CA[Player_X_Pos][Player_Y_Pos];
         Cell End =      CA[Goal_X_Pos][Goal_Y_Pos];
         
@@ -562,7 +428,8 @@ public class A_Star_Visualization  extends Application {
         
         
         Draw_Path();
-        placement = true;
+        Cell.placement = true;
+    
     }
     
 //******************************************************************************
@@ -571,7 +438,7 @@ public class A_Star_Visualization  extends Application {
 //Really only needs to be run after goal, but better safe then sorry: 
 //******************************************************************************       
     
-    public void Calculate_Heuristic(){
+    public static void Calculate_Heuristic(){
 
         System.out.println("Recalculating Heuristics:");
         //
@@ -725,8 +592,7 @@ public class A_Star_Visualization  extends Application {
         //7     //+0, -1
         //8     //+1, -1
         
-        
-        
+
         
         //1
         tmp_x = x - 1;
@@ -882,11 +748,58 @@ public class A_Star_Visualization  extends Application {
         while(P != null){
             int x = P.Get_X();
             int y = P.Get_Y();
-            ImageView IV = IVA[x][y];
-            InputStream Path = new FileInputStream("data\\Path.png");
-            Image value = new Image(Path);
-            IV.setImage(value);
+            
+            InputStream IS = new FileInputStream("data\\Path.png");
+            Image Path = new Image(IS);
+            CA[x][y].Set_Image(Path);
+            CA[x][y].Update_ImageView(); 
             P = P.Get_Parent();
+        }
+    }
+    
+
+    
+//******************************************************************************
+//Resets the Maze to its original placement:
+//******************************************************************************
+    private void Reset() throws FileNotFoundException {
+        if(placement == false){return;}
+        
+        for(int i = 0; i < NUMBER_OF_ROWS; i++){
+            for(int j = 0; j < NUMBER_OF_COLS; j++){
+                if(i == 0 && j == 0){
+                    Player_X_Pos = 0;
+                    Player_Y_Pos = 0;
+                    InputStream Player = new FileInputStream("data\\Player.png");
+                    Image I = new Image(Player);
+                    CA[i][j].Set_Image(I);
+                    CA[i][j].Update_ImageView();
+                    CA[i][j].Set_Can_Traverse(true);
+                    CA[i][j].Set_Parent(null);
+                    continue;
+                }
+                
+                
+                if(i == NUMBER_OF_ROWS - 1 && j == NUMBER_OF_COLS - 1){
+                    Goal_X_Pos = NUMBER_OF_ROWS - 1;
+                    Goal_Y_Pos = NUMBER_OF_COLS - 1;
+                    InputStream G = new FileInputStream("data\\Goal.png");
+                    Image Gi = new Image(G);
+                    CA[i][j].Set_Image(Gi);
+                    CA[i][j].Update_ImageView();
+                    CA[i][j].Set_Can_Traverse(true);
+                    CA[i][j].Set_Parent(null);
+                    continue;
+                }
+                
+                                    
+                InputStream GrassIS = new FileInputStream("data\\Grass.png");                    
+                Image Grass = new Image(GrassIS);
+                CA[i][j].Set_Image(Grass);
+                CA[i][j].Update_ImageView();    
+                CA[i][j].Set_Can_Traverse(true);
+                CA[i][j].Set_Parent(null);  
+            }
         }
     }
     
